@@ -271,38 +271,27 @@ Always assign arrow meaning, not just color:
 
 Always include a **legend** when 2+ arrow types are used.
 
-## Layout Principles
+## Layout Rules & Validation
 
-**Alignment**: Snap node centers to **8px base grid**. Horizontal: 120px intervals. Vertical: 120px intervals (consistent layer spacing).
+**Spacing**:
+- Same-layer nodes: 80px horizontal, 120px vertical between layers
+- Canvas margins: 40px minimum, 60px between node edges
+- Snap to 8px grid: horizontal 120px intervals, vertical 120px intervals
 
-**Grouping**: Use `<rect>` with dashed stroke + semi-trt fill + small label in top-left to visually group related nodes. Don't group more than 5-6 nodes in one box.
-
-**Layering**: For complex diagrams, divide into named swim-lanes with subtle background fills.
-
-**Spacing**: 
-- Same-layer nodes: 80px horizontal spacing (consistent)
-- Between layers: 120px vertical spacing (consistent)
-- Canvas margins: 40px minimum on all sides
-- Minimum 60px between node edges
-
-**Visual Hierarchy**:
-- **Core/primary nodes**: 20-30% larger than standard, double border or 3-4px stroke
-- **Secondary nodes**: Standard size, 2-2.5px stroke
-- **Tertiary nodes**: Standard size, 1.5-2px stroke
-- **Color hierarchy**: Core = high saturation, Secondary = medium saturation, Tertiary = low saturation/grayscale
-
-**Labels on arrows**: 
-- Short (≤3 words), placed mid-arrow
-- **MUST have background rect**: `<rect>` with fill matching canvas background, placed beh>`
-- Background rect padding: 4px horizontal, 2px vertical
-- Never overlap with nodes (maintain 10px safety distance)
-- When multiple arrows converge, stagger label vertical positions by 15-20px
+**Arrow Labels** (CRITICAL):
+- MUST have background rect: `<rect fill="canvas_bg" opacity="0.95"/>` with 4px horizontal, 2px vertical padding
+- Place mid-arrow, ≤3 words, stagger by 15-20px when multiple arrows converge
+- Maintain 10px safety distance from nodes
 
 **Arrow Routing**:
-- **Prefer orthogonal routing**: vertical then horizontal segments to minimize crossings
-- **Layer-based routing**: different semantic flows use different "channels" (y-offsets)
-- **Crossing minimization**: route arrows around dense node clusters
-- **Jump-over arcs**: when crossings unavoidable, use small arc (5px radius) at intersection point
+- Prefer orthogonal (L-shaped) paths to minimize crossings
+- Route around dense node clusters, use different y-offsets for parallel arrows
+- Jump-over arcs (5px radius) for unavoidable crossings
+
+**Validation Checklist** (run before finalizing):
+1. **Arrow-Component Collision**: Arrows MUST NOT pass through component interiors (route around with orthogonal paths)
+2. **Text Overflow**: All text MUST fit with 8px padding (estimate: `text.length × 7px ≤ shape_width - 16px`)
+3. **Arrow-Text Alignment**: Arrow endpoints MUST connect to shape edges (not floating); all arrow labels MUST have background rects
 
 ## SVG Technical Rules
 
@@ -315,110 +304,50 @@ Always include a **legend** when 2+ arrow types are used.
 - Curved paths: use `M x1,y1 C cx1,cy1 cx2,cy2 x2,y2` cubic bezier for loops/feedback arrows
 - Clip content: use `<clipPath>` if text might overflow a node box
 
-## SVG Generation Strategy
+## SVG Generation & Error Prevention
 
-**CRITICAL: Tool Call Discipline**
-- **NEVER call a tool without all required parameters** - this is the #1 cause of error loops
-- Before ANY tool call, verify you have all required parameters ready
-- If you encounter a tool error, STOP and analyze the root cause before retrying
-- **Max 2 retries** for the same approach - if it fails twice, switch methods immediately
-
-**Step 1: Estimate complexitnt nodes: N
-- Count arrows: A  
-- Estimated SVG lines: L = 50 (header) + N×15 + A×3 + 20 (legend)
-
-**Step 2: Choose generation method**
-- **If L < 150**: Direct Write tool (single call, most reliable)
-- **If 150 ≤ L < 300**: Python script via Bash (avoids heredoc issues)
-- **If L ≥ 300**: Chunked generation with Write + multiple appends
-
-**Step 3A: Direct generation (L < 150)**
-1. Generate complete SVG content as string variable
-2. Self-check before writing (see SVG Self-Check Rules below)
-3. Use Write tool with `file_path` and `content` parameters
-4. If Write fails once: switch to Python method immediately
-
-**Step 3B: Python script method (150 ≤ L < 300) - RECOMMENDED**
-```bash
+**MANDATORY: Python List Method** (ALWAYS use this):
+```python
 python3 << 'EOF'
-svg_content = '''<svtp://www.w3.org/2000/svg">
-...complete SVG here...
-</svg>'''
+lines = []
+lines.append('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 700">')
+lines.append('  <defs>')
+# ... each line separately
+lines.append('</svg>')
 
 with open('/path/to/output.svg', 'w') as f:
-    f.write(svg_content)
-print("Generated output.svg")
+    f.write('\n'.join(lines))
+print("SVG generated successfully")
 EOF
 ```
-- **n**: Avoids Bash heredoc truncation/corruption issues
-- **Triple quotes**: Handles complex SVG content reliably
-- **No escaping needed**: Python handles quotes and special chars correctep 3C: Chunked generation (L ≥ 300)**
-1. Chunk 1: Header (defs, style, background) → Write to file
-2. Chunk 2-N: Content sections → Append with `echo '...' >> file.svg`
-3. Final chunk: Legend + `</svg>` closing tag → Append
-4. Each chunk max 80 lines to avoid truncation
-5. **Verify each append**: Check file size increases after each append
 
-**Step 4: Validation**
-- Run `rsvg-convert file.svg -o /dev/null 2>&1`
-- If error: apply Quick Fix Protocol (see below), retry once
-- If still fails: report error to user with line number and stop
+**Why mandatory**: Prevents character truncation, typos, and syntax errors. Each line is independent and easy to verify.
 
-**Error Recovery Protocol**
-1. **First error**: Analyze root cause, apply targeted fix
-2. **Second error (same type)**: Switch generation method entirely
-3. **Third error**: Stop and report to user - do not loop endlessly
+**Pre-Tool-Call Checklist** (CRITICAL - use EVERY time):
+1. ✅ Can I write out the COMPLETE command/content right now?
+2. ✅ Do I have ALL required parameters ready?
+3. ✅ Have I checked for syntax errors in my prepared content?
 
-## SVG Self-Check Rules
+**If ANY answer is NO**: STOP. Do NOT call the tool. Prepare the content first.
 
-Before writing SVG, perform quick validation:
+**Error Recovery Protocol**:
+- **First error**: Analyze root cause, apply targeted fix
+- **Second error**: Switch method entirely (Python list → chunked generation)
+- **Third error**: STOP and report to user - do NOT loop endlessly
+- **Never**: Retry the same failing command or call tools with empty parameters
 
-**Rule 1: Tag Balance**
-- Count opening tags: `<rect`, `<text`, `<line`, `<path`, `<circle`
-- Count closing: `/>` self-closing + `</rect>`, `</text>`, etc.
-- Ensure balance: every opening has a closing
+**Validation** (run after generation):
+```bash
+rsvg-convert file.svg -o /tmp/test.png 2>&1 && echo "✓ Valid" && rm /tmp/test.png
+```
 
-**Rule 2: Quote Check**
-- All attribute values must be in quotes: `fill="#9dd4c7"` not `fill=#9dd4c7`
-- Check pattern: `\w+=["'][^"']*["']`
-
-**Rule 3: Special Characters**
-- Text content must not contain une`, `>`, `&`
-- If present, replace with&gt;`, `&amp;`
-
-**Rule 4: Marker References**
-- All `marker-end="url(#xxx)"` must have matching `<marker id="xxx">` in defs
-- Check before writing arrows section
-
-**Rule 5: Closing Tag**
-- Always end with `</svg>` on its own line
-- In chunked generation, include in final chunk
-
-## Quick Fix Protocol
-
-When `rsvg-convert` validation fails, parse error and apply fix:
-
-**Error: "Extra content at the end of the document"**
-- Cause: Missing `</svg>` closing tag
-- Fix: `echo '</svg>' >> file.svg`
-
-**Error: "Couldn't find end of Start Tag" (line N)**
-- Cause: Truncated attribute value
-- Fix: Read line N, identify incomplete attribute, use Edit tool to complete it
-
-**Error: "Invalid character" (line N)**
-- Cause: Unescaped `<`, `>`, or `&` in text
-- Fix: Read line N, replace with HTML entities using Edit tool
-
-**Error: "Undefined marker" or "Failed to "**
-- Cause: `marker-end="url(#arrow-xxx)"` but no `<marker id="arrow-xxx">` in defs
-- Fix: Add missing marker definition to defs section
-
-**Max retry: 1 time per error**
-- If quick fix doesn't resolve, report to user with:
-  - Full error message
-  - Line number
-  - Suggested manual fix
+**Common Syntax Errors to Avoid**:
+- ❌ `yt-anchor` → ✅ `y="60" text-anchor="middle"`
+- ❌ `x="390` (missing y) → ✅ `x="390" y="250"`
+- ❌ `fill=#fff` → ✅ `fill="#ffffff"`
+- ❌ `marker-end=` → ✅ `marker-end="url(#arrow)"`
+- ❌ `L 29450` → ✅ `L 290,220`
+- ❌ Missing `</svg>` at end
 
 ## Output
 
@@ -440,141 +369,9 @@ When `rsvg-convert` validation fails, parse error and apply fix:
 
 Load `references/style-N.md` for exact color tokens and SVG patterns.
 
-## Style-to-Diagram-Type Adaptation Guide
+## Style Selection
 
-Not all styles work equally well for every diagram type. Use this guide to pick the best style.
-
-### Architecture Diagram
-| Style | Suitability | Notes |
-|-------|------------|-------|
-| 1 Flat Icon | Excellent | Default choice; colorful node fills, clear layering |
-| 2 Dark Terminal | Excellent | Popular for dev blogs; use colored borders on dark bg |
-| 3 Blueprint | Excellent | Perfect for formal architecture docs |
-| 4 Notion Clean | Good | Minimal, works for inline docs |
-| 5 Glassmorphism | Good | Striking for presentations and product pages |
-| 6 Claude Official | Good | Warm aesthetic, Anthropic-style presentations |
-| 7 OpenAI Official | Good | Clean, precise; minimal borders, brand green accents |
-
-### Class Diagram / ER Diagram
-| Style | Suitability | Notes |
-|-------|------------|-------|
-| 1 Flat Icon | Good | Colored headers per class category |
-| 2 Dark Terminal | Good | High contrast for code-like diagrams |
-| 3 Blueprint | Excellent | Best for formal UML documentation |
-| 4 Notion Clean | Excellent | Clean, minimal; ideal for Notion-embedded diagrams |
-| 5 Glassmorphism | Poor | Glass effects distract from structural content |
-| 6 Claude Official | Excellent | Warm, readable; good for documentation |
-| 7 OpenAI Official | Excellent | Minimal aesthetic matches UML precision |
-
-### Sequence Diagram
-| Style | Suitability | Notes |
-|-------|------------|-------|
-| 1 Flat Icon | Good | Clear lifelines; activation boxes visible |
-| 2 Dark Terminal | Good | Good for dev articles; dashed lifelines visible |
-| 3 Blueprint | Excellent | Formal, technical documentation |
-| 4 Notion Clean | Excellent | Best for Notion-embedded sequence diagrams |
-| 5 Glassmorphism | Poor | Glass effects make lifelines hard to read |
-| 6 Claude Official | Excellent | Warm bg, good contrast |
-| 7 OpenAI Official | Excellent | Minimal, precise; ideal for API docs |
-
-### Flowchart / Process Flow
-| Style | Suitability | Notes |
-|-------|------------|-------|
-| 1 Flat Icon | Excellent | Default; colorful decision diamonds |
-| 2 Dark Terminal | Good | Works well for dev workflow diagrams |
-| 3 Blueprint | Good | Formal process documentation |
-| 4 Notion Clean | Good | Clean for SOPs and inline docs |
-| 5 Glassmorphism | Good | Striking for product demos |
-| 6 Claude Official | Good | Warm aesthetic for presentations |
-| 7 OpenAI Official | Good | Clean and minimal |
-
-### Mind Map / Concept Map
-| Style | Suitability | Notes |
-|-------|------------|-------|
-| 1 Flat Icon | Excellent | Colorful branches, engaging |
-| 2 Dark Terminal | Good | Neon-like branches on dark bg |
-| 3 Blueprint | Poor | Blueprint grid conflicts with radial layout |
-| 4 Notion Clean | Excellent | Ideal for Notion brainstorming |
-| 5 Glassmorphism | Excellent | Stunning visual for presentations |
-| 6 Claude Official | Good | Warm, readable |
-| 7 OpenAI Official | Good | Clean and minimal |
-
-### Data Flow Diagram
-| Style | Suitability | Notes |
-|-------|------------|-------|
-| 1 Flat Icon | Excellent | Color-coded arrows by data type |
-| 2 Dark Terminal | Excellent | Glowing data paths on dark bg |
-| 3 Blueprint | Excellent | Formal data flow documentation |
-| 4 Notion Clean | Good | Minimal, clean |
-| 5 Glassmorphism | Poor | Distracts from flow semantics |
-| 6 Claude Official | Good | Readable |
-| 7 OpenAI Official | Good | Precise, minimal |
-
-### Use Case Diagram
-| Style | Suitability | Notes |
-|-------|------------|-------|
-| 1 Flat Icon | Good | Colorful use case ellipses |
-| 2 Dark Terminal | Poor | Stick figures less visible on dark bg |
-| 3 Blueprint | Excellent | Classic UML aesthetic |
-| 4 Notion Clean | Excellent | Perfect for product requirement docs |
-| 5 Glassmorphism | Poor | Unnecessary visual noise |
-| 6 Claude Official | Excellent | Warm, professional |
-| 7 OpenAI Official | Excellent | Clean, precise UML |
-
-### State Machine Diagram
-| Style | Suitability | Notes |
-|-------|------------|-------|
-| 1 Flat Icon | Good | Colorful states |
-| 2 Dark Terminal | Good | Glowing states and transitions |
-| 3 Blueprint | Excellent | Best for formal UML state machines |
-| 4 Notion Clean | Excellent | Clean for documentation |
-| 5 Glassmorphism | Poor | Distracts from state transitions |
-| 6 Claude Official | Excellent | Readable |
-| 7 OpenAI Official | Excellent | Minimal, precise |
-
-### Network Topology
-| Style | Suitability | Notes |
-|-------|------------|-------|
-| 1 Flat Icon | Excellent | Colorful device icons |
-| 2 Dark Terminal | Excellent | Cyberpunk-style network maps |
-| 3 Blueprint | Excellent | Ideal for infrastructure docs |
-| 4 Notion Clean | Good | Clean for IT documentation |
-| 5 Glassmorphism | Good | Striking for presentations |
-| 6 Claude Official | Good | Professional network diagrams |
-| 7 OpenAI Official | Good | Clean infrastructure diagrams |
-
-### Comparison / Feature Matrix
-| Style | Suitability | Notes |
-|-------|------------|-------|
-| 1 Flat Icon | Excellent | Color-coded checkmarks |
-| 2 Dark Terminal | Good | Works for dev tool comparisons |
-| 3 Blueprint | Poor | Grid conflicts with table layout |
-| 4 Notion Clean | Excellent | Perfect for Notion-embedded tables |
-| 5 Glassmorphism | Poor | Distracts from tabular data |
-| 6 Claude Official | Excellent | Clean, warm |
-| 7 OpenAI Official | Excellent | Minimal, precise |
-
-### Timeline / Gantt
-| Style | Suitability | Notes |
-|-------|------------|-------|
-| 1 Flat Icon | Excellent | Colorful bars by category |
-| 2 Dark Terminal | Good | Works for dev roadmaps |
-| 3 Blueprint | Good | Formal project plans |
-| 4 Notion Clean | Excellent | Ideal for Notion project docs |
-| 5 Glassmorphism | Good | Striking for keynote presentations |
-| 6 Claude Official | Good | Warm, professional |
-| 7 OpenAI Official | Good | Clean timeline |
-
-### Agent / Memory Architecture
-| Style | Suitability | Notes |
-|-------|------------|-------|
-| 1 Flat Icon | Excellent | Colorful layers, engaging |
-| 2 Dark Terminal | Excellent | Popular for AI/ML blog posts |
-| 3 Blueprint | Good | Formal AI system documentation |
-| 4 Notion Clean | Good | Clean for AI research notes |
-| 5 Glassmorphism | Excellent | Stunning for AI product presentations |
-| 6 Claude Official | Excellent | Anthropic AI aesthetic |
-| 7 OpenAI Official | Excellent | OpenAI AI aesthetic |
+**Default**: Style 1 (Flat Icon) for most diagrams. Load `references/style-diagram-matrix.md` for detailed style-to-diagram-type recommendations.
 
 These patterns appear frequently — internalize them:
 
@@ -585,60 +382,4 @@ These patterns appear frequently — internalize them:
 **Agent Memory Types**: Sensory (raw input) → Working (context window) → Episodic (past interactions) → Semantic (facts) → Procedural (skills)
 **Multi-Agent**: Orchestrator → [SubAgent A / SubAgent B / SubAgent C] → Aggregator → Output
 **Tool Call Flow**: LLM → Tool Selector → Tool Execution → Result Parser → LLM (loop)
-
-## Common Mistakes
-
-| Mistake | Fix |
-|---------|-----|
-| Arrows crossing over nodes | Route around with orthogonal paths or bezier detour |
-| Too many arrow colors | Max 4 semantic colors per diagram; combine similar flows |
-| Unlabeled arrows | Always label; put text mid-arrow on white/dark bg rect |
-| No grouping on complex graphs | Add swim-lane rects for groups >4 nodes |
-| Text overflow | `text-anchor="middle"` + clip or shorten label |
-| PNG missing | Run rsvg-convert immediately after SVG write; report if unavailable |
-| Style mismatch | Load style reference file before generating any SVG |
-
-## Best Practices (2026 Update)
-
-### Text Size Hierarchy
-- **Title**: 24-28px, font-weight: 700
-- **Layer labels**: 16-18px, font-weight: 600
-- **Node main labels**: 16-18px, font-weight: 600
-- **Node sub-labels**: 13-14px, font-weight: 400
-- **Arrow labels**: 12-13px, font-weight: 400
-- **Legend**: 11-12px, font-weight: 400
-
-### Arrow Label Background
-**CRITICAL**: All arrow labels MUST have a background rect to prevent overlap with other elements.
-```xml
-<!-- Background rect (place before text) -->
-<rect x="label_x - 4" y="label_y - 14" width="lh + 8" height="18" 
-      fill="canvas_background_color" opacity="0.95"/>
-<text x="label_x" y="label_y">label_text</text>
-```
-
-### Arrow Semantics
-- **Primary flow**:  solid, high saturation color
-- **Secondary flow**: 2px stroke, solid, medium saturation  
-- **Async/optional**: 1.5px stroke, dashed (4,2), low saturation
-
-### Legend Requirements
-- **Placement**: Right-upper corner (x=760, y=40) or left-lower corner (x=40, y=520)
-- **Content**: Must include arrow types, node types (if >2 types), color semantics
-- **Style**: Match diagram style but use subtle background to distinguish
-
-### Orthogonal Arrow Routing
-To minimize crossings, use orthogonal (L-shaped) paths instead of diagonal lines:
-```xml
-<!-- Bad: diagonal crossing -->
-<line x1="100" y1="100" x2="300" y2="300"/>
-
-<!-- Good: orthogonal routing -->
-<path d="M 100,100 L 100,200 L 300,200 L 300,300"/>
-```
-
-### Node Size Hierarchy
-- **Core nodes**: 1.25x standard size, 3-4px stroke or double border
-- **Secondary nodes**: Standard size (180x90), 2-2.5px stroke
-- **Tertiary nodes**: Standard-2px stroke
 
