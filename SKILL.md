@@ -1,11 +1,52 @@
 ---
 name: fireworks-tech-graph
+
 description: "Use when the user wants to create any technical diagram, including architecture, data flow, flowchart, sequence, agent or memory, or concept map, and export it as SVG plus PNG. Trigger on requests like 画图, 帮我画, 生成图, 做个图, 架构图, 流程图, 可视化一下, 出图, generate diagram, draw diagram, or visualize."
----
+
 
 # Fireworks Tech Graph
 
 Generate production-quality SVG technical diagrams exported as PNG via `rsvg-convert`.
+
+## Helper Scripts (Recommended)
+
+Three bash scripts in `scripts/` directory provide stable SVG generation and validation:
+
+### 1. `generate-diagram.sh` - Generate SVG + PNG
+```bash
+./scripts/generate-diagram.sh <output-name> [width] [height] [output-dir]
+```
+- Generates SVG with predefined template
+- Validates syntax with xmllint
+- Exports PNG at 2x resolution
+- Example: `./scripts/generate-diagram.sh my-arch 960 800`
+
+### 2. `validate-svg.sh` - Validate SVG syntax
+```bash
+./scripts/validate-svg.sh <svg-file>
+```
+- Checks XML syntax
+- Verifies tag c- Validates marker references
+- Checks attribute completeness
+- Validates path data
+
+### 3. `test-all-styles.sh` - Batch test all styles
+```bash
+./scripts/test-all-styles.sh [output-dir]
+```
+- Tests multiple diagram sizes
+- Validates all generated SVGs
+- Generates test report
+
+**When to use scripts:**
+- Use scripts when generating complex SVGs to avoid syntax errors
+- Scripts provide automatic validation and error reporting
+- Recommended for production diagrams
+
+**When to generate SVG directly:**
+- Simple diagrams with few elements
+- Quick prototypes
+- When you need full control over SVG structure
 
 ## Workflow (Always Follow This Order)
 
@@ -15,9 +56,10 @@ Generate production-quality SVG technical diagrams exported as PNG via `rsvg-con
 4. **Load style reference** — always load `references/style-1-flat-icon.md` unless user specifies another; load the matching `references/style-N.md` for exact color tokens and SVG patterns
 5. **Map nodes to shapes** — use Shape Vocabulary below
 6. **Check icon needs** — load `references/icons.md` for known products
-7. **Write SVG** to output path (default: current working directory)
-8. **Export PNG**: `rsvg-convert -w 1920 file.svg -o file.png`
-9. **Report** both file paths
+7. **Write SVG** with adaptive strategy (see SVG Generation Strategy below)
+8. **Validate**: Run `rsvg-convert file.svg -o /dev/null 2>&1` to check syntax
+9. **Export PNG**: `rsvg-convert -w 1920 file.svg -o file.png`
+10. **Report** be paths
 
 ## Diagram Types & Layout Rules
 
@@ -89,6 +131,108 @@ Radial layout from central concept.
 - Second-level branches: branch off first-level at 30-45° offset
 - Use curved `<path>` with cubic bezier for branches, not straight lines
 
+### Class Diagram (UML)
+Static structure showing classes, attributes, methods, and relationships.
+- **Class box**: 3-compartment rect (name / attributes / methods), min width 160px
+  - Top compartment: class name, bold, centered (abstract = *italic*)
+  - Middle: attributes with visibility (`+` public, `-` private, `#` protected)
+  - Bottom: method signatures, same visibility notation
+- **Relationships**:
+  - Inheritance (extends): solid line + hollow triangle arrowhead, child → parent
+  - Implementation (interface): dashed line + hollow triangle, class → interface
+  - Association: solid line + open arrowhead, label with multiplicity (1, 0..*, 1..*)
+  - Aggregation: solid line + hollow diamond on container side
+  - Composition: solid line + filled diamond on container side
+  - Dependency: dashed line + open arrowhead
+- **Interface**: `<<interface>>` stereotype above name, or circle/lollipop notation
+- **Enum**: compartment rect with `<<enumeration>>` stereotype, values in bottom
+- Layout: parent classes top, children below; interfaces to the left/right of implementors
+- ViewBox: `0 0 960 600` standard; `0 0 960 800` for deep hierarchies
+
+### Use Case Diagram (UML)
+System functionality from user perspective.
+- **Actor**: stick figure (circle head + body line) placed outside system boundary
+  - Label below figure, 13-14px
+  - Primary actors on left, secondary/supporting on right
+- **Use case**: ellipse with label centered inside, min 140×60px
+  - Keep names verb phrases: "Create Order", "Process Payment"
+- **System boundary**: large rect with dashed border + system name in top-left
+- **Relationships**:
+  - Include: dashed arrow `<<include>>` from base to included use case
+  - Extend: dashed arrow `<<extend>>` from extension to base use case
+  - Generalization: solid line + hollow triangle (specialized → general)
+- Layout: system boundary centered, actors outside, use cases inside
+- ViewBox: `0 0 960 600` standard
+
+### State Machine Diagram (UML)
+Lifecycle states and transitions of an entity.
+- **State**: rounded rect with state name, min 120×50px
+  - Internal activities: small text `entry/ action`, `exit/ action`, `do/ activity`
+  - **Initial state**: filled black circle (r=8), one outgoing arrow
+  - **Final state**: filled circle (r=8) inside hollow circle (r=12)
+  - **Choice**: small hollow diamond, guard labels on outgoing arrows `[condition]`
+- **Transition**: arrow with optional label `event [guard] / action`
+  - Guard conditions in square brackets
+  - Actions after `/`
+- **Composite/nested state**: larger rect containing sub-states, with name tab
+- **Fork/join**: thick horizontal or vertical black bar (synchronization)
+- Layout: initial state top-left, final state bottom-right, flow top-to-bottom
+- ViewBox: `0 0 960 600` standard
+
+### ER Diagram (Entity-Relationship)
+Database schema and data relationships.
+- **Entity**: rect with entity name in header (bold), attributes below
+  - Primary key attribute: underlined
+  - Foreign key: italic or marked with (FK)
+  - Min width: 160px; attribute font-size: 12px
+- **Relationship**: diamond shape on connecting line
+  - Label inside diamond: "has", "belongs to", "enrolls in"
+  - Cardinality labels near entity: `1`, `N`, `0..1`, `0..*`, `1..*`
+- **Weak entity**: double-bordered rect with double diamond relationship
+- **Associative entity**: diamond + rect hybrid (rect with diamond inside)
+- Line style: solid for identifying relationships, dashed for non-identifying
+- Layout: entities in 2-3 rows, relationships between related entities
+- ViewBox: `0 0 960 600` standard; wider `0 0 1200 600` for many entities
+
+### Network Topology
+Physical or logical network infrastructure.
+- **Devices**: icon-like rects or rounded rects
+  - Router: circle with cross arrows
+  - Switch: rect with arrow grid
+  - Server: stacked rect (rack icon)
+  - Firewall: brick-pattern rect or shield shape
+  - Load Balancer: horizontal split rect with arrows
+  - Cloud: cloud path (overlapping arcs)
+- **Connections**: lines between device centers
+  - Ethernet/wired: solid line, label bandwidth
+  - Wireless: dashed line with WiFi symbol
+  - VPN: dashed line with lock icon
+- **Subnets/Zones**: dashed rect containers with zone label (DMZ, Internal, External)
+- **Labels**: device hostname + IP below, 12-13px
+- Layout: tiered top-to-bottom (Internet → Edge → Core → Access → Endpoints)
+- ViewBox: `0 0 960 600` standard
+
+## UML Coverage Map
+
+Full mapping of UML 14 diagram types to supported diagram types:
+
+| UML Diagram | Supported As | Notes |
+|-------------|-------------|-------|
+| Class | Class Diagram | Full UML notation |
+| Component | Architecture Diagram | Use colored fills per component type |
+| Deployment | Architecture Diagram | Add node/instance labels |
+| Package | Architecture Diagram | Use dashed grouping containers |
+| Composite Structure | Architecture Diagram | Nested rects within components |
+| Object | Class Diagram | Instance boxes with underlined name |
+| Use Case | Use Case Diagram | Full actor/ellipse/relationship |
+| Activity | Flowchart / Process Flow | Add fork/join bars |
+| State Machine | State Machine Diagram | Full UML notation |
+| Sequence | Sequence Diagram | Add alt/opt/loop frames |
+| Communication | — | Approximate with Sequence (swap axes) |
+| Timing | Timeline | Adapt time axis |
+| Interaction Overview | Flowchart | Combine activity + sequence fragments |
+| ER Diagram | ER Diagram | Chen/Crow's foot notation |
+
 ## Shape Vocabulary
 
 Map semantic concepts to consistent shapes across all diagram types:
@@ -128,19 +272,27 @@ Always assign arrow meaning, not just color:
 
 Always include a **legend** when 2+ arrow types are used.
 
-## Layout Principles
+## Layout Rules & Validation
 
-**Alignment**: Snap node centers to a grid. Horizontal: 120px intervals. Vertical: 80-100px intervals.
+**Spacing**:
+- Same-layer nodes: 80px horizontal, 120px vertical between layers
+- Canvas margins: 40px minimum, 60px between node edges
+- Snap to 8px grid: horizontal 120px intervals, vertical 120px intervals
 
-**Grouping**: Use `<rect>` with dashed stroke + semi-transparent fill + small label in top-left to visually group related nodes. Don't group more than 5-6 nodes in one box.
+**Arrow Labels** (CRITICAL):
+- MUST have background rect: `<rect fill="canvas_bg" opacity="0.95"/>` with 4px horizontal, 2px vertical padding
+- Place mid-arrow, ≤3 words, stagger by 15-20px when multiple arrows converge
+- Maintain 10px safety distance from nodes
 
-**Layering**: For complex diagrams, divide into named swim-lanes with subtle background fills.
+**Arrow Routing**:
+- Prefer orthogonal (L-shaped) paths to minimize crossings
+- Route around dense node clusters, use different y-offsets for parallel arrows
+- Jump-over arcs (5px radius) for unavoidable crossings
 
-**Spacing**: Minimum 60px between node edges. Arrow paths should not pass through nodes.
-
-**Hierarchy**: Most important/central node gets largest visual weight (size or color intensity).
-
-**Labels on arrows**: Short (≤3 words), placed mid-arrow, never overlap with nodes. Use `<text>` with white background rect behind it for legibility.
+**Validation Checklist** (run before finalizing):
+1. **Arrow-Component Collision**: Arrows MUST NOT pass through component interiors (route around with orthogonal paths)
+2. **Text Overflow**: All text MUST fit with 8px padding (estimate: `text.length × 7px ≤ shape_width - 16px`)
+3. **Arrow-Text Alignment**: Arrow endpoints MUST connect to shape edges (not floating); all arrow labels MUST have background rects
 
 ## SVG Technical Rules
 
@@ -152,6 +304,51 @@ Always include a **legend** when 2+ arrow types are used.
 - Drop shadows: `<feDropShadow>` in `<filter>`, apply sparingly (key nodes only)
 - Curved paths: use `M x1,y1 C cx1,cy1 cx2,cy2 x2,y2` cubic bezier for loops/feedback arrows
 - Clip content: use `<clipPath>` if text might overflow a node box
+
+## SVG Generation & Error Prevention
+
+**MANDATORY: Python List Method** (ALWAYS use this):
+```python
+python3 << 'EOF'
+lines = []
+lines.append('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 700">')
+lines.append('  <defs>')
+# ... each line separately
+lines.append('</svg>')
+
+with open('/path/to/output.svg', 'w') as f:
+    f.write('\n'.join(lines))
+print("SVG generated successfully")
+EOF
+```
+
+**Why mandatory**: Prevents character truncation, typos, and syntax errors. Each line is independent and easy to verify.
+
+**Pre-Tool-Call Checklist** (CRITICAL - use EVERY time):
+1. ✅ Can I write out the COMPLETE command/content right now?
+2. ✅ Do I have ALL required parameters ready?
+3. ✅ Have I checked for syntax errors in my prepared content?
+
+**If ANY answer is NO**: STOP. Do NOT call the tool. Prepare the content first.
+
+**Error Recovery Protocol**:
+- **First error**: Analyze root cause, apply targeted fix
+- **Second error**: Switch method entirely (Python list → chunked generation)
+- **Third error**: STOP and report to user - do NOT loop endlessly
+- **Never**: Retry the same failing command or call tools with empty parameters
+
+**Validation** (run after generation):
+```bash
+rsvg-convert file.svg -o /tmp/test.png 2>&1 && echo "✓ Valid" && rm /tmp/test.png
+```
+
+**Common Syntax Errors to Avoid**:
+- ❌ `yt-anchor` → ✅ `y="60" text-anchor="middle"`
+- ❌ `x="390` (missing y) → ✅ `x="390" y="250"`
+- ❌ `fill=#fff` → ✅ `fill="#ffffff"`
+- ❌ `marker-end=` → ✅ `marker-end="url(#arrow)"`
+- ❌ `L 29450` → ✅ `L 290,220`
+- ❌ Missing `</svg>` at end
 
 ## Output
 
@@ -166,12 +363,16 @@ Always include a **legend** when 2+ arrow types are used.
 | 1 | **Flat Icon** (default) | White | Blogs, docs, presentations |
 | 2 | **Dark Terminal** | `#0f0f1a` | GitHub, dev articles |
 | 3 | **Blueprint** | `#0a1628` | Architecture docs |
-| 4 | **Notion Clean** | White, minimal | Notion, Confluence |
+| 4 | **Notion Clean** | White, minimal | Notionnce |
 | 5 | **Glassmorphism** | Dark gradient | Product sites, keynotes |
+| 6 | **Claude Official** | Warm cream `#f8f6f3` | Anthropic-style diagrams |
+| 7 | **OpenAI Official** | Pure white `#ffffff` | OpenAI-style diagrams |
 
 Load `references/style-N.md` for exact color tokens and SVG patterns.
 
-## AI/Agent Domain: Common Diagram Patterns
+## Style Selection
+
+**Default**: Style 1 (Flat Icon) for most diagrams. Load `references/style-diagram-matrix.md` for detailed style-to-diagram-type recommendations.
 
 These patterns appear frequently — internalize them:
 
@@ -183,14 +384,3 @@ These patterns appear frequently — internalize them:
 **Multi-Agent**: Orchestrator → [SubAgent A / SubAgent B / SubAgent C] → Aggregator → Output
 **Tool Call Flow**: LLM → Tool Selector → Tool Execution → Result Parser → LLM (loop)
 
-## Common Mistakes
-
-| Mistake | Fix |
-|---------|-----|
-| Arrows crossing over nodes | Route around with orthogonal paths or bezier detour |
-| Too many arrow colors | Max 4 semantic colors per diagram; combine similar flows |
-| Unlabeled arrows | Always label; put text mid-arrow on white/dark bg rect |
-| No grouping on complex graphs | Add swim-lane rects for groups >4 nodes |
-| Text overflow | `text-anchor="middle"` + clip or shorten label |
-| PNG missing | Run rsvg-convert immediately after SVG write; report if unavailable |
-| Style mismatch | Load style reference file before generating any SVG |
