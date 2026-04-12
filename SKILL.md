@@ -28,6 +28,12 @@ https://www.npmjs.com/package/@yizhiyanhua-ai/fireworks-tech-graph
 
 Do not pass `@yizhiyanhua-ai/fireworks-tech-graph` directly to `skills add`, because the CLI expects a GitHub or local repository source.
 
+Update command:
+
+```bash
+npx skills add yizhiyanhua-ai/fireworks-tech-graph --force -g -y
+```
+
 ## Helper Scripts (Recommended)
 
 Four helper scripts in `scripts/` directory provide stable SVG generation and validation:

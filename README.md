@@ -149,6 +149,14 @@ https://www.npmjs.com/package/@yizhiyanhua-ai/fireworks-tech-graph
 
 Do not use the npm package name with `skills add`, because the CLI resolves install sources as GitHub/local paths.
 
+## Update
+
+```bash
+npx skills add yizhiyanhua-ai/fireworks-tech-graph --force -g -y
+```
+
+Re-run `add --force` to pull the latest version of this skill.
+
 Or clone directly:
 
 ```bash

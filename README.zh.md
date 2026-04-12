@@ -147,6 +147,14 @@ https://www.npmjs.com/package/@yizhiyanhua-ai/fireworks-tech-graph
 
 不要把 npm 包名直接写进 `skills add`，因为 CLI 会把安装源解析为 GitHub 路径或本地路径。
 
+## 更新
+
+```bash
+npx skills add yizhiyanhua-ai/fireworks-tech-graph --force -g -y
+```
+
+用户后续要升级时，直接重新执行一次 `add --force` 即可拉取最新版本。
+
 或直接克隆：
 
 ```bash
